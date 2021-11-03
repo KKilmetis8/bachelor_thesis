@@ -9,7 +9,7 @@ Created on Thu Oct 28 13:29:26 2021
 import numpy as np
 import math as m
 import matplotlib.pyplot as plt
-import scipy as sp
+from scipy.integrate import odeint 
 #%% Defining the Constants and ODEs
 
 # The Electron degeneracy pressure, for relativistic electrons
@@ -28,7 +28,7 @@ c = 2.99792458e10 # cgs [cm s^-1]
 # We derive E_0= Mc^2 / (4/3)*π*R^3 = 1e27 erg/cm^3
 # For M=0.5 M_sol and R=1e4 Km, which are typical values for a WD
 
-E0 = 0.5*1.989e33*c**2 / (4*m.pi/3 * (1e4*1e5)**3) #1e4 Km and 1e5 to convert to cm
+E0 = 1.989e33*c**2 / (4*m.pi/3 * (1e4*1e5)**3) #1e4 Km and 1e5 to convert to cm
 
 # It only now occured to me, that I could make python do
 # the calculation, instead of doing it by hand. Well, at least
@@ -45,13 +45,13 @@ def pressa(x,P,m):
     if x==0:
         return 0 # dP/dr=0 at the core. The pressure stays constant.
                 # Maybe this is a bad way to implement this...
-    a = - m/(x**2 * P**gamma)
+    a = - G*K**(gamma)*m/(x**2* P**gamma)
     return a
 
 def maza(x,P):
     if x==0:
         return 0 # dM/dr=0 at the core. The pressure stays constant.
-    b = x**2 /P**gamma
+    b = 4*m.pi*K**(gamma)*x**2 /P**gamma
     return b
 
 #%% Starting Conditions
@@ -60,42 +60,45 @@ def maza(x,P):
 # For x=0 => M=0 dM/dr=0
 # For x=0 => P=P_c dP/dr=0
 
-h=1
-P_c=1e24/P0 # P=P0 * Pbar and we use Pbar
+h=1000
+P_c=1e14# P=P0 * Pbar and we use Pbar
 r=[]
 M=[]
 P=[]
 r.append(0)
 M.append(0) # No mass at the center
-P.append(P_c) # Test a 100 values from 1e-14 to 1e-16
+P.append(P_c) # Test a 100 values from 1e-24 to 1e-26
 
 #%% RK4
 i=0
 # RK4 Loop, add the P_c loop.
 while type(P[i])==float:
          P1=h* pressa(r[i],P[i],M[i])
-         P2=h* pressa(r[i]+h/2, P[i] + P1/2, M[i])
-         P3=h* pressa(r[i]+h/2, P[i] + P2/2, M[i])
-         P4=h* pressa(r[i]+h, P[i] + P3, M[i])
+         M1=h* maza(r[i],P[i])
+         
+         P2=h* pressa(r[i]+h/2, P[i] + P1/2, M[i]+ M1/2)
+         M2=h* maza(r[i]+h/2, P[i]+ P1/2)
+         
+         P3=h* pressa(r[i]+h/2, P[i] + P2/2, M[i]+M2/2)
+         M3=h* maza(r[i]+h/2, P[i]+P2/2)
+         
+         P4=h* pressa(r[i]+h, P[i] + P3, M[i]+ M3)
+         M4=h* maza(r[i]+h, P[i]+ P3)
+         
          P.append(P[i] + 1/6 * (P1+2*P2+2*P3+P4))
-       
-         M1=h*maza(r[i],P[i])
-         M2=h*maza(r[i]+h/2, P[i])
-         M3=h*maza(r[i]+h/2, P[i])
-         M4=h*maza(r[i]+h/2, P[i])
          M.append(M[i] + 1/6 * (M1+2*M2+2*M3+M4))
          
          r.append(r[i]+h)
          i=i+1
 
 # Proper Units, x=X0*x[]
-rp= [j*R0*1e-5 for j in r]      # get Km
-Mp= [j*M0*1.989e-33 for j in M] # get solar masses
-Pp= [j*P0 for j in P]
+rp= [j*1e-5 for j in r]      # get Km
+Mp= [j*1.989e-33 for j in M] # get solar masses
+# Pp= [j*P0 for j in P]
 
 # Plotting
 plt.figure(1)
-fig = plt.plot(rp,Pp)
+fig = plt.plot(rp,P)
 plt.legend(['Pressure'])
 plt.title('Pressure of a Newtonian White Dwarf')
 plt.xlabel("R $[Km]$")
